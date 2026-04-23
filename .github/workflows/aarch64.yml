@@ -2,8 +2,7 @@ name: build-aarch64
 
 on:
   push:
-    branches: [main]
-  pull_request:
+    tags: ['*']
   workflow_dispatch:
 
 jobs:
@@ -15,9 +14,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Read Dawn version
+      - name: Verify tag matches dawn-version
         id: ver
-        run: echo "dawn_version=$(tr -d '[:space:]' < dawn-version)" >> "$GITHUB_OUTPUT"
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          version="$(tr -d '[:space:]' < dawn-version)"
+          tag_stripped="${tag#v}"
+          if [[ "${tag_stripped}" != "${version}" ]]; then
+            echo "ERROR: tag '${tag}' does not match dawn-version '${version}'" >&2
+            echo "       (compared as '${tag_stripped}' vs '${version}')" >&2
+            exit 1
+          fi
+          echo "tag '${tag}' matches dawn-version '${version}'"
+          echo "dawn_version=${version}" >> "$GITHUB_OUTPUT"
 
       - name: Install build dependencies
         run: |
