@@ -42,7 +42,7 @@ jobs:
       - name: Cache Dawn source + third_party
         uses: actions/cache@v4
         with:
-          path: .cache/dawn-src
+          path: .cache/dawn-src-${{ steps.ver.outputs.dawn_version }}
           key: dawn-src-${{ steps.ver.outputs.dawn_version }}
 
       - name: Build (Debug + Release)

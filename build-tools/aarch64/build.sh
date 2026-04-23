@@ -9,9 +9,10 @@
 #
 # Env overrides:
 #   DAWN_VERSION   Version string (default: contents of dawn-version)
-#   DAWN_REF       Git ref to check out (default: v${DAWN_VERSION})
-#   DAWN_GIT_URL   Dawn git URL (default: https://dawn.googlesource.com/dawn)
-#   DAWN_SRC_DIR   Existing Dawn source tree to reuse (skips clone+fetch)
+#   DAWN_TAG       GitHub tag (default: v${DAWN_VERSION})
+#   DAWN_TARBALL_URL  Source tarball URL
+#                     (default: https://github.com/google/dawn/archive/refs/tags/${DAWN_TAG}.tar.gz)
+#   DAWN_SRC_DIR   Existing Dawn source tree to reuse (skips download+fetch)
 #   BUILD_TYPES    Space-separated list (default: "Debug Release")
 #   JOBS           Parallel jobs for ninja (default: nproc)
 
@@ -29,24 +30,38 @@ if [[ -z "${DAWN_VERSION:-}" ]]; then
     DAWN_VERSION="$(tr -d '[:space:]' < "${VERSION_FILE}")"
 fi
 
-DAWN_REF="${DAWN_REF:-v${DAWN_VERSION}}"
-DAWN_GIT_URL="${DAWN_GIT_URL:-https://dawn.googlesource.com/dawn}"
-DAWN_SRC_DIR="${DAWN_SRC_DIR:-${REPO_ROOT}/.cache/dawn-src}"
+DAWN_TAG="${DAWN_TAG:-v${DAWN_VERSION}}"
+DAWN_TARBALL_URL="${DAWN_TARBALL_URL:-https://github.com/google/dawn/archive/refs/tags/${DAWN_TAG}.tar.gz}"
+DAWN_SRC_DIR="${DAWN_SRC_DIR:-${REPO_ROOT}/.cache/dawn-src-${DAWN_VERSION}}"
 BUILD_TYPES="${BUILD_TYPES:-Debug Release}"
 JOBS="${JOBS:-$(nproc)}"
 
 echo "==> dawn-exotic aarch64 build"
 echo "    repo root:    ${REPO_ROOT}"
 echo "    dawn version: ${DAWN_VERSION}"
-echo "    dawn ref:     ${DAWN_REF}"
+echo "    dawn tag:     ${DAWN_TAG}"
 echo "    dawn source:  ${DAWN_SRC_DIR}"
 echo "    build types:  ${BUILD_TYPES}"
 echo "    jobs:         ${JOBS}"
 
-if [[ ! -d "${DAWN_SRC_DIR}/.git" && ! -f "${DAWN_SRC_DIR}/CMakeLists.txt" ]]; then
-    echo "==> Cloning Dawn (${DAWN_REF})"
+if [[ ! -f "${DAWN_SRC_DIR}/CMakeLists.txt" ]]; then
+    echo "==> Downloading Dawn source: ${DAWN_TARBALL_URL}"
+    tarball="$(mktemp --suffix=.tar.gz)"
+    trap 'rm -f "${tarball}"' EXIT
+    curl --fail --location --show-error --silent --output "${tarball}" "${DAWN_TARBALL_URL}"
+
+    extract_dir="$(mktemp -d)"
+    tar -xzf "${tarball}" -C "${extract_dir}"
+    # GitHub tarballs unpack to a single top-level dir like dawn-<tag-without-v>/
+    inner="$(find "${extract_dir}" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+    if [[ -z "${inner}" || ! -f "${inner}/CMakeLists.txt" ]]; then
+        echo "ERROR: unexpected tarball layout under ${extract_dir}" >&2
+        exit 1
+    fi
     mkdir -p "$(dirname "${DAWN_SRC_DIR}")"
-    git clone --depth 1 --branch "${DAWN_REF}" "${DAWN_GIT_URL}" "${DAWN_SRC_DIR}"
+    rm -rf "${DAWN_SRC_DIR}"
+    mv "${inner}" "${DAWN_SRC_DIR}"
+    rm -rf "${extract_dir}"
 fi
 
 if [[ ! -d "${DAWN_SRC_DIR}/third_party/abseil-cpp" ]]; then
