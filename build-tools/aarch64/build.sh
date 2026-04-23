@@ -64,7 +64,7 @@ if [[ ! -f "${DAWN_SRC_DIR}/CMakeLists.txt" ]]; then
     rm -rf "${extract_dir}"
 fi
 
-if [[ ! -d "${DAWN_SRC_DIR}/third_party/abseil-cpp" ]]; then
+if [[ ! -f "${DAWN_SRC_DIR}/third_party/abseil-cpp/CMakeLists.txt" ]]; then
     echo "==> Fetching Dawn third_party dependencies"
     python3 "${DAWN_SRC_DIR}/tools/fetch_dawn_dependencies.py" --directory "${DAWN_SRC_DIR}"
 fi
