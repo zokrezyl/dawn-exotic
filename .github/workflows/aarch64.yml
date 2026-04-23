@@ -35,15 +35,17 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             cmake ninja-build python3 git ca-certificates pkg-config \
             libwayland-dev wayland-protocols libwayland-bin \
-            libxkbcommon-dev libx11-dev libxrandr-dev libxinerama-dev \
-            libxcursor-dev libxi-dev libxext-dev \
+            libxkbcommon-dev libx11-dev libx11-xcb-dev libxrandr-dev libxinerama-dev \
+            libxcursor-dev libxi-dev libxext-dev libxcb1-dev \
             libvulkan-dev mesa-common-dev
 
-      - name: Cache Dawn source + third_party
+      - name: Cache depot_tools + Dawn source
         uses: actions/cache@v4
         with:
-          path: .cache/dawn-src-${{ steps.ver.outputs.dawn_version }}
-          key: dawn-src-${{ steps.ver.outputs.dawn_version }}
+          path: |
+            .cache/depot_tools
+            .cache/dawn-${{ steps.ver.outputs.dawn_version }}
+          key: dawn-depot-${{ steps.ver.outputs.dawn_version }}
 
       - name: Build (Debug + Release)
         run: ./build-tools/aarch64/build.sh
