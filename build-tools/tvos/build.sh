@@ -131,7 +131,8 @@ common_cmake_flags=(
 # Build a single (build_type, slice, PLATFORM) combination.
 build_slice() {
     local build_type="$1" slice="$2" platform="$3"
-    local lower="${build_type,,}"
+    local lower
+    lower="$(printf '%s' "${build_type}" | tr '[:upper:]' '[:lower:]')"
     local build_dir="${REPO_ROOT}/build-tvos-${lower}-${slice}"
 
     echo
@@ -153,7 +154,7 @@ build_slice() {
 }
 
 for build_type in ${BUILD_TYPES}; do
-    lower="${build_type,,}"
+    lower="$(printf '%s' "${build_type}" | tr '[:upper:]' '[:lower:]')"
 
     # Three slices, matching Dawn's iOS layout but targeting tvOS SDKs.
     build_slice "${build_type}" "device"     "TVOS"
