@@ -99,7 +99,11 @@ for build_type in ${BUILD_TYPES}; do
         -DDAWN_USE_WAYLAND=ON \
         -DDAWN_USE_X11=ON \
         -DDAWN_ENABLE_VULKAN=ON \
-        -DDAWN_BUILD_SAMPLES=ON \
+        -DDAWN_BUILD_SAMPLES=OFF \
+        -DDAWN_BUILD_TESTS=OFF \
+        -DTINT_BUILD_TESTS=OFF \
+        -DTINT_BUILD_CMD_TOOLS=OFF \
+        -DTINT_BUILD_IR_BINARY=OFF \
         -DDAWN_ENABLE_INSTALL=ON
 
     echo "==> Building webgpu_dawn (${build_type})"
