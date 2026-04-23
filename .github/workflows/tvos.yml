@@ -5,6 +5,9 @@ on:
     tags: ['*']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-14
@@ -55,11 +58,28 @@ jobs:
       - name: Build (Debug + Release)
         run: ./build-tools/tvos/build.sh
 
-      - name: Upload webgpu_dawn xcframeworks
+      - name: Package release tarballs
+        run: |
+          set -euo pipefail
+          version="${{ steps.ver.outputs.dawn_version }}"
+          mkdir -p release
+          for bt in debug release; do
+              stage="dawn-tvos-${bt}-${version}"
+              tar -C "build-tvos-${bt}" -czf "release/${stage}.xcframework.tar.gz" \
+                  webgpu_dawn.xcframework
+          done
+          ls -la release/
+
+      - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
           name: webgpu_dawn-tvos-${{ steps.ver.outputs.dawn_version }}
-          path: |
-            build-tvos-debug/webgpu_dawn.xcframework
-            build-tvos-release/webgpu_dawn.xcframework
+          path: release/*.tar.gz
           if-no-files-found: error
+
+      - name: Attach to GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.tar.gz
+          fail_on_unmatched_files: true

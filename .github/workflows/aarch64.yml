@@ -5,6 +5,9 @@ on:
     tags: ['*']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-24.04-arm
@@ -50,11 +53,31 @@ jobs:
       - name: Build (Debug + Release)
         run: ./build-tools/aarch64/build.sh
 
-      - name: Upload libwebgpu_dawn artifacts
+      - name: Package release tarballs
+        id: pkg
+        run: |
+          set -euo pipefail
+          version="${{ steps.ver.outputs.dawn_version }}"
+          mkdir -p release
+          for bt in debug release; do
+              stage="dawn-linux-aarch64-${bt}-${version}"
+              mkdir -p "release/${stage}"
+              cp "build-aarch64-${bt}/src/dawn/native/libwebgpu_dawn.a" "release/${stage}/"
+              tar -C release -czf "release/${stage}.tar.gz" "${stage}"
+              rm -rf "release/${stage}"
+          done
+          ls -la release/
+
+      - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
           name: libwebgpu_dawn-aarch64-${{ steps.ver.outputs.dawn_version }}
-          path: |
-            build-aarch64-debug/src/dawn/native/libwebgpu_dawn.a
-            build-aarch64-release/src/dawn/native/libwebgpu_dawn.a
+          path: release/*.tar.gz
           if-no-files-found: error
+
+      - name: Attach to GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*.tar.gz
+          fail_on_unmatched_files: true
