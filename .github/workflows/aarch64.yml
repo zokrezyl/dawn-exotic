@@ -1,0 +1,48 @@
+name: build-aarch64
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read Dawn version
+        id: ver
+        run: echo "dawn_version=$(tr -d '[:space:]' < dawn-version)" >> "$GITHUB_OUTPUT"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build python3 git ca-certificates pkg-config \
+            libwayland-dev wayland-protocols libwayland-bin \
+            libxkbcommon-dev libx11-dev libxrandr-dev libxinerama-dev \
+            libxcursor-dev libxi-dev libxext-dev \
+            libvulkan-dev mesa-common-dev
+
+      - name: Cache Dawn source + third_party
+        uses: actions/cache@v4
+        with:
+          path: .cache/dawn-src
+          key: dawn-src-${{ steps.ver.outputs.dawn_version }}
+
+      - name: Build (Debug + Release)
+        run: ./build-tools/aarch64/build.sh
+
+      - name: Upload libwebgpu_dawn artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: libwebgpu_dawn-aarch64-${{ steps.ver.outputs.dawn_version }}
+          path: |
+            build-aarch64-debug/src/dawn/native/libwebgpu_dawn.a
+            build-aarch64-release/src/dawn/native/libwebgpu_dawn.a
+          if-no-files-found: error
