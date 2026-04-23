@@ -1,4 +1,4 @@
-name: build-aarch64
+name: build-tvos
 
 on:
   push:
@@ -7,8 +7,8 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 120
+    runs-on: macos-14
+    timeout-minutes: 180
 
     steps:
       - name: Checkout
@@ -29,32 +29,37 @@ jobs:
           echo "tag '${tag}' matches dawn-version '${version}'"
           echo "dawn_version=${version}" >> "$GITHUB_OUTPUT"
 
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            cmake ninja-build python3 git ca-certificates pkg-config \
-            libwayland-dev wayland-protocols libwayland-bin \
-            libxkbcommon-dev libx11-dev libx11-xcb-dev libxrandr-dev libxinerama-dev \
-            libxcursor-dev libxi-dev libxext-dev libxcb1-dev \
-            libvulkan-dev mesa-common-dev
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
 
-      - name: Cache depot_tools + Dawn source
+      - name: Show Xcode + tvOS SDKs
+        run: |
+          xcodebuild -version
+          xcrun --sdk appletvos --show-sdk-path
+          xcrun --sdk appletvsimulator --show-sdk-path
+
+      - name: Install build dependencies
+        run: brew install cmake ninja
+
+      - name: Cache depot_tools + Dawn source + ios-cmake
         uses: actions/cache@v4
         with:
           path: |
             .cache/depot_tools
             .cache/dawn-${{ steps.ver.outputs.dawn_version }}
-          key: dawn-aarch64-${{ steps.ver.outputs.dawn_version }}
+            .cache/ios-cmake-*.cmake
+          key: dawn-tvos-${{ steps.ver.outputs.dawn_version }}
 
       - name: Build (Debug + Release)
-        run: ./build-tools/aarch64/build.sh
+        run: ./build-tools/tvos/build.sh
 
-      - name: Upload libwebgpu_dawn artifacts
+      - name: Upload webgpu_dawn xcframeworks
         uses: actions/upload-artifact@v4
         with:
-          name: libwebgpu_dawn-aarch64-${{ steps.ver.outputs.dawn_version }}
+          name: webgpu_dawn-tvos-${{ steps.ver.outputs.dawn_version }}
           path: |
-            build-aarch64-debug/src/dawn/native/libwebgpu_dawn.a
-            build-aarch64-release/src/dawn/native/libwebgpu_dawn.a
+            build-tvos-debug/webgpu_dawn.xcframework
+            build-tvos-release/webgpu_dawn.xcframework
           if-no-files-found: error
