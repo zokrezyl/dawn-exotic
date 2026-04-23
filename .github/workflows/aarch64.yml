@@ -53,19 +53,8 @@ jobs:
       - name: Build (Debug + Release)
         run: ./build-tools/aarch64/build.sh
 
-      - name: Package release tarballs (cmake --install + tar)
-        id: pkg
-        run: |
-          set -euo pipefail
-          version="${{ steps.ver.outputs.dawn_version }}"
-          mkdir -p release
-          for bt in debug release; do
-              stage="dawn-linux-aarch64-${bt}-${version}"
-              cmake --install "build-aarch64-${bt}" --prefix "release/${stage}"
-              tar -C release -czf "release/${stage}.tar.gz" "${stage}"
-              rm -rf "release/${stage}"
-          done
-          ls -la release/
+      - name: List release tarballs
+        run: ls -la release/
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4

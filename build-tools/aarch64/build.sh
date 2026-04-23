@@ -87,7 +87,13 @@ if [[ ! -f "${DAWN_SRC_DIR}/third_party/abseil-cpp/CMakeLists.txt" ]]; then
     (cd "${DAWN_SRC_DIR}" && gclient sync --no-history --shallow --jobs "${JOBS}")
 fi
 
-# 5. Build
+# 5. Build (mirrors upstream Dawn desktop CI: -C dawn-ci.cmake, full build, install, tar)
+DAWN_CI_CACHE="${DAWN_SRC_DIR}/.github/workflows/dawn-ci.cmake"
+if [[ ! -f "${DAWN_CI_CACHE}" ]]; then
+    echo "ERROR: missing ${DAWN_CI_CACHE}" >&2
+    exit 1
+fi
+
 for build_type in ${BUILD_TYPES}; do
     lower="${build_type,,}"
     build_dir="${REPO_ROOT}/build-aarch64-${lower}"
@@ -95,19 +101,13 @@ for build_type in ${BUILD_TYPES}; do
     echo
     echo "==> Configuring ${build_type} -> ${build_dir}"
     cmake -S "${DAWN_SRC_DIR}" -B "${build_dir}" -G Ninja \
+        -C "${DAWN_CI_CACHE}" \
         -DCMAKE_BUILD_TYPE="${build_type}" \
         -DDAWN_USE_WAYLAND=ON \
-        -DDAWN_USE_X11=ON \
-        -DDAWN_ENABLE_VULKAN=ON \
-        -DDAWN_BUILD_SAMPLES=OFF \
-        -DDAWN_BUILD_TESTS=OFF \
-        -DTINT_BUILD_TESTS=OFF \
-        -DTINT_BUILD_CMD_TOOLS=OFF \
-        -DTINT_BUILD_IR_BINARY=OFF \
-        -DDAWN_ENABLE_INSTALL=ON
+        -DDAWN_USE_X11=ON
 
-    echo "==> Building webgpu_dawn (${build_type})"
-    cmake --build "${build_dir}" --target webgpu_dawn -j "${JOBS}"
+    echo "==> Building (full ${build_type})"
+    cmake --build "${build_dir}" -j "${JOBS}"
 
     lib="${build_dir}/src/dawn/native/libwebgpu_dawn.a"
     if [[ ! -f "${lib}" ]]; then
@@ -115,6 +115,15 @@ for build_type in ${BUILD_TYPES}; do
         exit 1
     fi
     echo "==> Built: ${lib} ($(du -h "${lib}" | cut -f1))"
+
+    # Package: install + tar (mirrors upstream Dawn ci.yml "Package" step)
+    stage="dawn-linux-aarch64-${lower}-${DAWN_VERSION}"
+    rm -rf "${REPO_ROOT}/release/${stage}" "${REPO_ROOT}/release/${stage}.tar.gz"
+    mkdir -p "${REPO_ROOT}/release"
+    cmake --install "${build_dir}" --prefix "${REPO_ROOT}/release/${stage}"
+    (cd "${REPO_ROOT}/release" && cmake -E tar cvzf "${stage}.tar.gz" "${stage}")
+    rm -rf "${REPO_ROOT}/release/${stage}"
+    echo "==> Packaged: ${REPO_ROOT}/release/${stage}.tar.gz"
 done
 
 echo
