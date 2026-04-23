@@ -58,15 +58,20 @@ jobs:
       - name: Build (Debug + Release)
         run: ./build-tools/tvos/build.sh
 
-      - name: Package release tarballs
+      - name: Package release tarballs (cmake --install + xcframework + tar)
         run: |
           set -euo pipefail
           version="${{ steps.ver.outputs.dawn_version }}"
           mkdir -p release
           for bt in debug release; do
               stage="dawn-tvos-${bt}-${version}"
-              tar -C "build-tvos-${bt}" -czf "release/${stage}.xcframework.tar.gz" \
-                  webgpu_dawn.xcframework
+              # cmake --install gives us include/ + lib/cmake/Dawn/ from one slice.
+              cmake --install "build-tvos-${bt}-device" --prefix "release/${stage}"
+              # Replace single-slice .a with the multi-arch xcframework.
+              rm -f "release/${stage}/lib/libwebgpu_dawn.a"
+              cp -R "build-tvos-${bt}/webgpu_dawn.xcframework" "release/${stage}/lib/"
+              tar -C release -czf "release/${stage}.tar.gz" "${stage}"
+              rm -rf "release/${stage}"
           done
           ls -la release/
 
