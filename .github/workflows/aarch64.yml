@@ -56,13 +56,6 @@ jobs:
       - name: List release tarballs
         run: ls -la release/
 
-      - name: Upload workflow artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: libwebgpu_dawn-aarch64-${{ steps.ver.outputs.dawn_version }}
-          path: release/*.tar.gz
-          if-no-files-found: error
-
       - name: Attach to GitHub release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
