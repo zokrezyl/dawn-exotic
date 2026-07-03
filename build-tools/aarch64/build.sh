@@ -100,11 +100,18 @@ for build_type in ${BUILD_TYPES}; do
 
     echo
     echo "==> Configuring ${build_type} -> ${build_dir}"
+    # DAWN_ENABLE_DESKTOP_GL / _OPENGLES default OFF and are not turned on by
+    # dawn-ci.cmake, so the stock artifact ships without any OpenGL backend.
+    # We enable them (via GLX on X11 / EGL) so WEBGPU_BACKEND=opengl can drive
+    # a vendor GL ICD on hosts where Vulkan is unavailable. Command-line -D
+    # overrides the -C cache, so the backend flips on without patching Dawn.
     cmake -S "${DAWN_SRC_DIR}" -B "${build_dir}" -G Ninja \
         -C "${DAWN_CI_CACHE}" \
         -DCMAKE_BUILD_TYPE="${build_type}" \
         -DDAWN_USE_WAYLAND=ON \
-        -DDAWN_USE_X11=ON
+        -DDAWN_USE_X11=ON \
+        -DDAWN_ENABLE_DESKTOP_GL=ON \
+        -DDAWN_ENABLE_OPENGLES=ON
 
     echo "==> Building (full ${build_type})"
     cmake --build "${build_dir}" -j "${JOBS}"
