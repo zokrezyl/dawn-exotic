@@ -10,11 +10,16 @@
 #   This build turns the desktop-GL / GLES backends on so WEBGPU_BACKEND=opengl
 #   can drive the vendor GL ICD and reach the virtual GPU.
 #
-# Follows the official Dawn build flow (docs/building.md): depot_tools +
-# gclient sync + cmake -G Ninja, compiled with MSVC. An MSVC dev environment
-# must be on PATH: the CI job sets it up via ilammy/msvc-dev-cmd; locally, run
-# this from an "x64 Native Tools Command Prompt for VS" (or dot-source
-# vcvars64.bat first) so `cl` and `ninja` resolve.
+# Dependency fetch: unlike the *nix scripts (depot_tools + gclient), Windows
+# uses Dawn's standalone tools/fetch_dawn_dependencies.py. depot_tools' git
+# shim + git-cache path is fragile in headless CI (gclient sync dies in
+# cache_dir with WinError 2); the standalone fetcher uses plain system git and
+# is the documented lightweight path for CMake-only builds (docs/building.md).
+#
+# Build: cmake -G Ninja, compiled with MSVC. An MSVC dev environment must be on
+# PATH: the CI job sets it up via ilammy/msvc-dev-cmd; locally, run this from an
+# "x64 Native Tools Command Prompt for VS" (or dot-source vcvars64.bat first) so
+# `cl` and `ninja` resolve. Requires system `git` and `python` on PATH.
 #
 # Output:
 #   <repo_root>/release/dawn-windows-x86_64-<type>-<version>.tar.gz
@@ -53,62 +58,38 @@ if ([string]::IsNullOrWhiteSpace($DawnVersion)) {
 $DawnTag    = if ($env:DAWN_TAG)     { $env:DAWN_TAG }     else { "v$DawnVersion" }
 $DawnGitUrl = if ($env:DAWN_GIT_URL) { $env:DAWN_GIT_URL } else { 'https://github.com/google/dawn.git' }
 
-$CacheDir      = Join-Path $RepoRoot '.cache'
-$DepotToolsDir = Join-Path $CacheDir 'depot_tools'
-$DawnSrcDir    = if ($env:DAWN_SRC_DIR) { $env:DAWN_SRC_DIR } else { Join-Path $CacheDir "dawn-$DawnVersion" }
-$BuildTypes    = if ($env:BUILD_TYPES) { $env:BUILD_TYPES -split '\s+' } else { @('Release') }
-$Jobs          = if ($env:JOBS) { $env:JOBS } else { $env:NUMBER_OF_PROCESSORS }
+$CacheDir   = Join-Path $RepoRoot '.cache'
+$DawnSrcDir = if ($env:DAWN_SRC_DIR) { $env:DAWN_SRC_DIR } else { Join-Path $CacheDir "dawn-$DawnVersion" }
+$BuildTypes = if ($env:BUILD_TYPES) { $env:BUILD_TYPES -split '\s+' } else { @('Release') }
+$Jobs       = if ($env:JOBS) { $env:JOBS } else { $env:NUMBER_OF_PROCESSORS }
 
-Write-Host "==> dawn-exotic windows build (depot_tools)"
+Write-Host "==> dawn-exotic windows build (fetch_dawn_dependencies)"
 Write-Host "    repo root:    $RepoRoot"
 Write-Host "    dawn version: $DawnVersion"
 Write-Host "    dawn tag:     $DawnTag"
 Write-Host "    dawn url:     $DawnGitUrl"
 Write-Host "    dawn source:  $DawnSrcDir"
-Write-Host "    depot_tools:  $DepotToolsDir"
 Write-Host "    build types:  $($BuildTypes -join ' ')"
 Write-Host "    jobs:         $Jobs"
 
-# 1. depot_tools
-if (-not (Test-Path (Join-Path $DepotToolsDir 'gclient.bat'))) {
-    Write-Host "==> Cloning depot_tools"
-    New-Item -ItemType Directory -Force -Path $CacheDir | Out-Null
-    if (Test-Path $DepotToolsDir) { Remove-Item -Recurse -Force $DepotToolsDir }
-    Invoke-Checked { git clone --depth 1 `
-        https://chromium.googlesource.com/chromium/tools/depot_tools.git `
-        $DepotToolsDir } 'git clone depot_tools'
-}
-$env:PATH = "$DepotToolsDir;$env:PATH"
-$env:DEPOT_TOOLS_UPDATE = '0'
-# Use the locally-installed MSVC toolchain, not Google's internal package.
-$env:DEPOT_TOOLS_WIN_TOOLCHAIN = '0'
-# depot_tools bootstraps its bundled Python/Git automatically on the first
-# gclient invocation (the sync below), so no explicit priming step is needed.
-
-# 2. Dawn checkout at the tagged release
+# 1. Dawn checkout at the tagged release
 if (-not (Test-Path (Join-Path $DawnSrcDir '.git'))) {
     Write-Host "==> Cloning Dawn $DawnTag"
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $DawnSrcDir) | Out-Null
     Invoke-Checked { git clone --depth 1 --branch $DawnTag $DawnGitUrl $DawnSrcDir } 'git clone dawn'
 }
 
-# 3. Bootstrap gclient
-$GclientFile = Join-Path $DawnSrcDir '.gclient'
-if (-not (Test-Path $GclientFile)) {
-    Write-Host "==> Bootstrapping standalone.gclient"
-    Copy-Item (Join-Path $DawnSrcDir 'scripts\standalone.gclient') $GclientFile
-}
-
-# 4. gclient sync (fetch all deps). Skip if already populated.
+# 2. Fetch third-party deps with Dawn's standalone fetcher (no depot_tools).
+#    Populates third_party/ using plain system git; skip if already present.
 if (-not (Test-Path (Join-Path $DawnSrcDir 'third_party\abseil-cpp\CMakeLists.txt'))) {
-    Write-Host "==> gclient sync"
+    Write-Host "==> Fetching Dawn dependencies (fetch_dawn_dependencies.py --shallow)"
     Push-Location $DawnSrcDir
     try {
-        Invoke-Checked { & cmd /c "gclient sync --no-history --shallow --jobs $Jobs" } 'gclient sync'
+        Invoke-Checked { python tools/fetch_dawn_dependencies.py --shallow } 'fetch_dawn_dependencies'
     } finally { Pop-Location }
 }
 
-# 5. Build (mirrors the *nix scripts: -C dawn-ci.cmake, full build, install, tar)
+# 3. Build (mirrors the *nix scripts: -C dawn-ci.cmake, full build, install, tar)
 $DawnCiCache = Join-Path $DawnSrcDir '.github\workflows\dawn-ci.cmake'
 if (-not (Test-Path $DawnCiCache)) { throw "missing $DawnCiCache" }
 
@@ -123,8 +104,10 @@ foreach ($buildType in $BuildTypes) {
     # -C dawn-ci.cmake gives the lean upstream config (samples/tests off, D3D +
     # Vulkan on). We add the OpenGL backends on top; command-line -D overrides
     # the -C cache. D3D11/D3D12/Vulkan are re-asserted ON so this artifact is a
-    # strict superset of the stock Windows build. Ninja + MSVC (cl) from the
-    # dev environment already on PATH.
+    # strict superset of the stock Windows build. DAWN_SUPPORTS_CXX_MODULES=OFF
+    # skips the C++20 module target, whose generate step fails under MSVC/Ninja
+    # (no module dependency scanner wired). Ninja + MSVC (cl) from the dev
+    # environment already on PATH.
     Invoke-Checked { cmake -S $DawnSrcDir -B $buildDir -G Ninja `
         -C $DawnCiCache `
         -DCMAKE_BUILD_TYPE=$buildType `
