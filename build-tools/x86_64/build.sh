@@ -135,7 +135,8 @@ for build_type in ${BUILD_TYPES}; do
         -DDAWN_SUPPORTS_CXX_MODULES=OFF \
         -DDAWN_BUILD_PROTOBUF=OFF \
         -DDAWN_ENABLE_DESKTOP_GL=ON \
-        -DDAWN_ENABLE_OPENGLES=ON
+        -DDAWN_ENABLE_OPENGLES=ON \
+        -DDAWN_SUPPORTS_CXX_MODULES=OFF
 
     echo "==> Building (full ${build_type})"
     cmake --build "${build_dir}" -j "${JOBS}"

@@ -82,9 +82,8 @@ $env:PATH = "$DepotToolsDir;$env:PATH"
 $env:DEPOT_TOOLS_UPDATE = '0'
 # Use the locally-installed MSVC toolchain, not Google's internal package.
 $env:DEPOT_TOOLS_WIN_TOOLCHAIN = '0'
-# First invocation bootstraps depot_tools' bundled Python/Git — force it now
-# so failures surface here rather than mid-sync.
-Invoke-Checked { & cmd /c "gclient --version" } 'gclient bootstrap'
+# depot_tools bootstraps its bundled Python/Git automatically on the first
+# gclient invocation (the sync below), so no explicit priming step is needed.
 
 # 2. Dawn checkout at the tagged release
 if (-not (Test-Path (Join-Path $DawnSrcDir '.git'))) {
@@ -135,7 +134,8 @@ foreach ($buildType in $BuildTypes) {
         -DDAWN_ENABLE_D3D12=ON `
         -DDAWN_ENABLE_VULKAN=ON `
         -DDAWN_ENABLE_DESKTOP_GL=ON `
-        -DDAWN_ENABLE_OPENGLES=ON } 'cmake configure'
+        -DDAWN_ENABLE_OPENGLES=ON `
+        -DDAWN_SUPPORTS_CXX_MODULES=OFF } 'cmake configure'
 
     Write-Host "==> Building (full $buildType)"
     Invoke-Checked { cmake --build $buildDir -j $Jobs } 'cmake build'
