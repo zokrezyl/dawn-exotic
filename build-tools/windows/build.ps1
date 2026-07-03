@@ -108,20 +108,29 @@ foreach ($buildType in $BuildTypes) {
     # skips the C++20 module target, whose generate step fails under MSVC/Ninja
     # (no module dependency scanner wired). Ninja + MSVC (cl) from the dev
     # environment already on PATH.
-    Invoke-Checked { cmake -S $DawnSrcDir -B $buildDir -G Ninja `
-        -C $DawnCiCache `
-        -DCMAKE_BUILD_TYPE=$buildType `
-        -DCMAKE_C_COMPILER=cl `
-        -DCMAKE_CXX_COMPILER=cl `
-        -DDAWN_ENABLE_D3D11=ON `
-        -DDAWN_ENABLE_D3D12=ON `
-        -DDAWN_ENABLE_VULKAN=ON `
-        -DDAWN_ENABLE_DESKTOP_GL=ON `
-        -DDAWN_ENABLE_OPENGLES=ON `
-        -DDAWN_SUPPORTS_CXX_MODULES=OFF } 'cmake configure'
+    #
+    # Args are built as an explicit array of quoted strings: barewords like
+    # -DCMAKE_BUILD_TYPE=$buildType are parsed as literal parameter tokens
+    # inside a scriptblock (no interpolation), which fed cmake the literal
+    # string '$buildType' and broke Dawn's $<CONFIG:...> genex (issue #2).
+    $cfgArgs = @(
+        '-S', $DawnSrcDir, '-B', $buildDir, '-G', 'Ninja',
+        '-C', $DawnCiCache,
+        "-DCMAKE_BUILD_TYPE=$buildType",
+        '-DCMAKE_C_COMPILER=cl',
+        '-DCMAKE_CXX_COMPILER=cl',
+        '-DDAWN_ENABLE_D3D11=ON',
+        '-DDAWN_ENABLE_D3D12=ON',
+        '-DDAWN_ENABLE_VULKAN=ON',
+        '-DDAWN_ENABLE_DESKTOP_GL=ON',
+        '-DDAWN_ENABLE_OPENGLES=ON',
+        '-DDAWN_SUPPORTS_CXX_MODULES=OFF'
+    )
+    Invoke-Checked { cmake @cfgArgs } 'cmake configure'
 
     Write-Host "==> Building (full $buildType)"
-    Invoke-Checked { cmake --build $buildDir -j $Jobs } 'cmake build'
+    $buildArgs = @('--build', $buildDir, '-j', $Jobs)
+    Invoke-Checked { cmake @buildArgs } 'cmake build'
 
     $lib = Join-Path $buildDir 'src\dawn\native\webgpu_dawn.lib'
     if (-not (Test-Path $lib)) { throw "expected output not found: $lib" }
@@ -132,10 +141,12 @@ foreach ($buildType in $BuildTypes) {
     $stage    = "dawn-windows-x86_64-$lower-$DawnVersion"
     $stageDir = Join-Path $RepoRoot "release\$stage"
     if (Test-Path $stageDir) { Remove-Item -Recurse -Force $stageDir }
-    Invoke-Checked { cmake --install $buildDir --prefix $stageDir } 'cmake install'
+    $installArgs = @('--install', $buildDir, '--prefix', $stageDir)
+    Invoke-Checked { cmake @installArgs } 'cmake install'
     Push-Location (Join-Path $RepoRoot 'release')
     try {
-        Invoke-Checked { cmake -E tar cvzf "$stage.tar.gz" $stage } 'tar'
+        $tarArgs = @('-E', 'tar', 'cvzf', "$stage.tar.gz", $stage)
+        Invoke-Checked { cmake @tarArgs } 'tar'
     } finally { Pop-Location }
     Remove-Item -Recurse -Force $stageDir
     Write-Host "==> Packaged: release\$stage.tar.gz"
