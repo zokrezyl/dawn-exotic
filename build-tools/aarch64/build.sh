@@ -110,6 +110,11 @@ for build_type in ${BUILD_TYPES}; do
     # DAWN_BUILD_PROTOBUF=OFF: protobuf backs only Tint's IR-binary format and
     # the fuzzers, neither of which we ship. Off trims the build and keeps the
     # bundled tint CLI lean (SPIR-V -> WGSL needs no IR-binary support).
+    # DAWN_ENABLE_DESKTOP_GL / _OPENGLES default OFF and are not turned on by
+    # dawn-ci.cmake, so the stock artifact ships without any OpenGL backend.
+    # We enable them (via GLX on X11 / EGL) so WEBGPU_BACKEND=opengl can drive
+    # a vendor GL ICD on hosts where Vulkan is unavailable. Command-line -D
+    # overrides the -C cache, so the backend flips on without patching Dawn.
     cmake -S "${DAWN_SRC_DIR}" -B "${build_dir}" -G Ninja \
         -C "${DAWN_CI_CACHE}" \
         -DCMAKE_BUILD_TYPE="${build_type}" \
@@ -118,7 +123,9 @@ for build_type in ${BUILD_TYPES}; do
         -DTINT_BUILD_SPV_READER=ON \
         -DTINT_BUILD_CMD_TOOLS=ON \
         -DDAWN_SUPPORTS_CXX_MODULES=OFF \
-        -DDAWN_BUILD_PROTOBUF=OFF
+        -DDAWN_BUILD_PROTOBUF=OFF \
+        -DDAWN_ENABLE_DESKTOP_GL=ON \
+        -DDAWN_ENABLE_OPENGLES=ON
 
     echo "==> Building (full ${build_type})"
     cmake --build "${build_dir}" -j "${JOBS}"
