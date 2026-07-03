@@ -43,11 +43,10 @@ jobs:
       # Ninja and CMake come from depot_tools (added to PATH by build.ps1) and
       # the runner image respectively — no extra setup step needed.
 
-      - name: Cache depot_tools + Dawn source
+      - name: Cache Dawn source + deps
         uses: actions/cache@v4
         with:
           path: |
-            .cache/depot_tools
             .cache/dawn-${{ steps.ver.outputs.dawn_version }}
           key: dawn-windows-${{ steps.ver.outputs.dawn_version }}
 
