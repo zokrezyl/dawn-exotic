@@ -126,6 +126,11 @@ common_cmake_flags=(
     -DENABLE_BITCODE=OFF
     -DENABLE_ARC=OFF
     -DENABLE_VISIBILITY=OFF
+    # dawn-ci.cmake's mobile section disables TINT_BUILD_IR_BINARY (the only
+    # protobuf consumer) but leaves DAWN_BUILD_PROTOBUF at its ON default, so
+    # protobuf still configures and fails cross-compiling: it needs a host
+    # protoc (third_party/protobuf.cmake). Nothing in webgpu_dawn needs it.
+    -DDAWN_BUILD_PROTOBUF=OFF
 )
 
 # Build a single (build_type, slice, PLATFORM) combination.
