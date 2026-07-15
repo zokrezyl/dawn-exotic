@@ -117,6 +117,9 @@ for build_type in ${BUILD_TYPES}; do
     # gives a false positive, so the target gets created and then breaks
     # generate. We consume Dawn's C API (webgpu.h), not the C++ module, so force
     # the gate off. Pre-defining the cache var makes the probe skip itself.
+    # DAWN_BUILD_PROTOBUF=OFF: protobuf backs only Tint's IR-binary format and
+    # the fuzzers, neither of which we ship. Off trims the build and keeps the
+    # bundled tint CLI lean (SPIR-V -> WGSL needs no IR-binary support).
     cmake -S "${DAWN_SRC_DIR}" -B "${build_dir}" -G Ninja \
         -C "${DAWN_CI_CACHE}" \
         -DCMAKE_BUILD_TYPE="${build_type}" \
@@ -124,7 +127,8 @@ for build_type in ${BUILD_TYPES}; do
         -DDAWN_USE_X11=ON \
         -DTINT_BUILD_SPV_READER=ON \
         -DTINT_BUILD_CMD_TOOLS=ON \
-        -DDAWN_SUPPORTS_CXX_MODULES=OFF
+        -DDAWN_SUPPORTS_CXX_MODULES=OFF \
+        -DDAWN_BUILD_PROTOBUF=OFF
 
     echo "==> Building (full ${build_type})"
     cmake --build "${build_dir}" -j "${JOBS}"

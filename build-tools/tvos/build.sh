@@ -117,6 +117,13 @@ fi
 #   -C dawn-ci.cmake            shared mobile/static config (samples off, etc.)
 #   -DCMAKE_TOOLCHAIN_FILE=...  ios-cmake toolchain
 #   -DENABLE_BITCODE=OFF -DENABLE_ARC=OFF -DENABLE_VISIBILITY=OFF
+#   -DDAWN_BUILD_PROTOBUF=OFF   protobuf backs only Tint's IR-binary format and
+#                               the fuzzers (neither shipped); the newer Dawn
+#                               otherwise drags it into the graph and the tvOS
+#                               cross-compile then demands a host protoc.
+#   -DDAWN_SUPPORTS_CXX_MODULES=OFF  the C++20 `import dawn;` (dawncpp_module)
+#                               target is unused here and its module scanning
+#                               is a cross-compile hazard; we consume the C API.
 common_cmake_flags=(
     -G Ninja
     -DDAWN_MOBILE_BUILD=apple
@@ -126,6 +133,8 @@ common_cmake_flags=(
     -DENABLE_BITCODE=OFF
     -DENABLE_ARC=OFF
     -DENABLE_VISIBILITY=OFF
+    -DDAWN_BUILD_PROTOBUF=OFF
+    -DDAWN_SUPPORTS_CXX_MODULES=OFF
 )
 
 # Build a single (build_type, slice, PLATFORM) combination.
