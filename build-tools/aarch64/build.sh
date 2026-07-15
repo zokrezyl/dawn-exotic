@@ -104,7 +104,9 @@ for build_type in ${BUILD_TYPES}; do
         -C "${DAWN_CI_CACHE}" \
         -DCMAKE_BUILD_TYPE="${build_type}" \
         -DDAWN_USE_WAYLAND=ON \
-        -DDAWN_USE_X11=ON
+        -DDAWN_USE_X11=ON \
+        -DTINT_BUILD_SPV_READER=ON \
+        -DTINT_BUILD_CMD_TOOLS=ON
 
     echo "==> Building (full ${build_type})"
     cmake --build "${build_dir}" -j "${JOBS}"
@@ -121,6 +123,21 @@ for build_type in ${BUILD_TYPES}; do
     rm -rf "${REPO_ROOT}/release/${stage}" "${REPO_ROOT}/release/${stage}.tar.gz"
     mkdir -p "${REPO_ROOT}/release"
     cmake --install "${build_dir}" --prefix "${REPO_ROOT}/release/${stage}"
+
+    # Also bundle the standalone Tint CLI (SPIR-V -> WGSL conversion, WGSL
+    # validation, and cross-compilation to MSL/HLSL/SPIR-V/GLSL). It is built
+    # by TINT_BUILD_CMD_TOOLS but is not covered by cmake --install, so copy it
+    # into the staged tree by hand. -print -quit stops at the first match and
+    # avoids a SIGPIPE under 'set -o pipefail'.
+    tint_bin="$(find "${build_dir}" -type f -name tint -perm -u+x -print -quit)"
+    if [[ -n "${tint_bin}" ]]; then
+        mkdir -p "${REPO_ROOT}/release/${stage}/bin"
+        cp "${tint_bin}" "${REPO_ROOT}/release/${stage}/bin/tint"
+        echo "==> Bundled tint CLI: ${tint_bin} -> ${stage}/bin/tint"
+    else
+        echo "WARNING: tint CLI not found under ${build_dir}; tarball will omit bin/tint" >&2
+    fi
+
     (cd "${REPO_ROOT}/release" && cmake -E tar cvzf "${stage}.tar.gz" "${stage}")
     rm -rf "${REPO_ROOT}/release/${stage}"
     echo "==> Packaged: ${REPO_ROOT}/release/${stage}.tar.gz"
