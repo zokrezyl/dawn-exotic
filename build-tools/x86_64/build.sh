@@ -110,13 +110,21 @@ for build_type in ${BUILD_TYPES}; do
 
     echo
     echo "==> Configuring ${build_type} -> ${build_dir}"
+    # DAWN_SUPPORTS_CXX_MODULES=OFF: Dawn's dawncpp_module target (the C++20
+    # `import dawn;` interface) makes the CMake generate step fail under
+    # Ninja + GCC, which cannot scan C++ module import graphs. Dawn probes for
+    # module support with check_cxx_source_compiles, and GCC + -fmodules-ts
+    # gives a false positive, so the target gets created and then breaks
+    # generate. We consume Dawn's C API (webgpu.h), not the C++ module, so force
+    # the gate off. Pre-defining the cache var makes the probe skip itself.
     cmake -S "${DAWN_SRC_DIR}" -B "${build_dir}" -G Ninja \
         -C "${DAWN_CI_CACHE}" \
         -DCMAKE_BUILD_TYPE="${build_type}" \
         -DDAWN_USE_WAYLAND=ON \
         -DDAWN_USE_X11=ON \
         -DTINT_BUILD_SPV_READER=ON \
-        -DTINT_BUILD_CMD_TOOLS=ON
+        -DTINT_BUILD_CMD_TOOLS=ON \
+        -DDAWN_SUPPORTS_CXX_MODULES=OFF
 
     echo "==> Building (full ${build_type})"
     cmake --build "${build_dir}" -j "${JOBS}"
